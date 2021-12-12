@@ -1,4 +1,4 @@
-# projects
+
 Projects in the Data analytics domain
 
 The project is built on R programming language using tidyverse, ggplot2 and dplyr packages among many others.
