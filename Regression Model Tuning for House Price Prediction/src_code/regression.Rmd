@@ -1,0 +1,400 @@
+---
+title: "STAT 5010-002: Stat Methods and App II Final Project"
+author: "Anuradha Mysore Ravishankar"
+output: pdf_document
+---
+
+
+## **Regression Model Tuning for House Price Prediction**
+
+Real estate is one area where the prices of the houses, mansions and other properties tend to change rapidly. House prices are often subject to change as many factors are dependent on them. Some of them could be the possible kind of neighborhood, industries around the place, location, amenities of the property and etc. 
+
+Boston is one of the healthiest cities in the USA with a high quality of life to match. Deutsche Bank conducted a survey and Boston is the eighth best city in the world in terms of quality of life. (Boston is the highest-ranking U.S. city on the list). Additionally, Money describes Boston as the best place to live in the Northeast with a strong local economy and family activities.
+Let us look at how the house prices in the Boston varies and what are the factors impacting them.
+
+## *Step 1 - Loading required Libraries*
+
+```{r import libraries, echo=TRUE}
+library("Hmisc")
+library(ggplot2)
+library(corrplot)
+library(infotheo)
+library(glmnet)
+library(car)
+```
+
+## *Step 2 - Reading the Data*
+
+```{r Read the data, echo = TRUE}
+
+data <- read.csv("E://Classes Spring 2022//STAT//project//boston.csv")
+#data
+```
+
+## *Step 3 - Exploratory Data Analysis*
+
+```{r Summarize and describing the data, echo=TRUE}
+summary(data)
+```
+
+Observation:
+
+1. The highest median prices of the houses indicated by MEDV variable is $50,000
+2. The MEDV variable is also the target or the response variable in this analysis
+3. There are no missing values and the data is clean
+
+
+Some distribution plots to visualize the data.
+
+```{r Distribution of house prices, echo=TRUE}
+p <- ggplot(data, aes(x=MEDV)) + 
+    geom_histogram(aes(y=..density..),      
+                   binwidth=.5,
+                   colour="black", fill="gray") +
+    geom_density(alpha=.2, fill="#000000")  +
+   ggtitle("Distribution of Median House Prices - MEDV")
+p
+```
+Observation:
+
+1. The average house price is around $25,000
+2. The distribution is not perfectly normal , the target is not perfectly following normal distribution
+
+```{r price distribution based on number of rooms, echo=TRUE}
+data$RM <- round(data$RM)
+
+p <- ggplot(data, aes(x=factor(RM),
+                   y=MEDV,color=factor(RM)))
+p + geom_boxplot() +
+  labs(y = "Median House Price - MEDV", x = "No. of Rooms") +
+   ggtitle("Boxplot of Avg No. of Rooms vs Median House Price")
+p
+```
+
+Observation:
+
+The price of the houses increases with the increase in number of rooms
+
+
+```{r scatter plot to see how distance impacts prices, echo=TRUE}
+p <- ggplot(data, aes(x=DIS, y=MEDV)) +
+  geom_point(size=2, shape=23) +
+  labs(y = "Median House Price - MEDV", x = "Distance to Boston Corporate Centres") +
+   ggtitle("Scatterplot of Distance to Corporate Centre vs MEDV")
+p
+```
+Observation:
+
+1. Closer the Boston employment centers from the houses, lesser are the house prices
+2. As we can see there is a large proportion of houses having low prices that are having Boston employment centers very close to their houses
+3. Prices shoot up as the distance of Boston employment centers is farther from the houses
+
+
+## *Step 4 - Correlation Analysis*
+
+```{r correlation matrix, echo=TRUE}
+
+corr.data = rcorr(as.matrix(data))
+corr.data
+```
+
+
+
+```{r correlation plot, echo=TRUE}
+
+
+data.cor.plot = cor(data)
+corrplot(data.cor.plot, title = "Correlation plot amongst variables", mar=c(0,0,1,0)) 
+```
+Observation:
+
+1. NOX and DIS are highly inversely correlated variables
+2. RAD and TAX are positively correlated variables
+3. Most positively correlated with RM
+4. CRIM, NOX, RAD, TAX, PTRATIO, LSTAT are correlated with MEDV
+
+## *Step 5 - Mutual Information Calculation*
+
+
+```{r MI Calculation, echo=TRUE}
+
+
+MI1<- mutinformation(discretize(data[,1]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for CRIM and MEDV is",MI1))
+MI2<- mutinformation(discretize(data[,2]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for ZN and MEDV is",MI2))
+MI3<- mutinformation(discretize(data[,3]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for INDUS and MEDV is",MI3))
+MI4<- mutinformation(discretize(data[,4]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for CHAS and MEDV is",MI4))
+MI5<- mutinformation(discretize(data[,5]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for NOX and MEDV is",MI5))
+MI6<- mutinformation(discretize(data[,6]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for RM and MEDV is",MI6))
+MI7<- mutinformation(discretize(data[,7]),discretize(data[,14]),method= "emp")
+print(paste("Mutual Information for AGE and MEDV is",MI7))
+MI8<- mutinformation(discretize(data[,8]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for DIS and MEDV is",MI8))
+MI9<- mutinformation(discretize(data[,9]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for RAD and MEDV is",MI9))
+MI10<- mutinformation(discretize(data[,10]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for TAX and MEDV is",MI10))
+MI11<- mutinformation(discretize(data[,11]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for PTRATIO and MEDV is",MI11))
+MI12<- mutinformation(discretize(data[,12]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for B and MEDV is",MI12))
+MI13<- mutinformation(discretize(data[,13]),discretize(data[,14]),method= "emp")
+print(paste("Mutual information for LSTAT and MEDV is",MI13))
+
+```
+Observation:
+
+1. The MEDV, median house prices are most positively influenced by RM and most negatively influenced by LSTAT.
+2.  This is similar to the results in correlation matrix and correlation plot
+
+## *Step 6 - Split the data in train and test dataset*
+
+
+```{r train and test data, echo=TRUE}
+set.seed(123)  
+
+smp_size <- floor(0.70 * nrow(data))
+train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+train <- data[train_ind, ]
+test <- data[-train_ind, ]
+```
+
+
+## *Step 7 - Feature Selection using Stepwise Regression, ANOVA statistics and AIC*
+
+Forward Selection
+
+```{r forward selection, echo=TRUE}
+model1 <- lm(MEDV ~ 1, data=train)
+full_model <- lm(MEDV ~ ., data=train)
+forward <- step(model1, direction='forward', scope=formula(full_model), trace=0)
+forward$anova
+forward$coefficients
+summary(forward)
+```
+
+Backward Selection
+
+```{r backward selection, echo=TRUE}
+model2 <- lm(MEDV ~ 1, data=train)
+full_model <- lm(MEDV ~ ., data=train)
+backward <- step(full_model, direction='backward', scope=formula(full_model), trace=0)
+backward$anova
+backward$coefficients
+summary(backward)
+```
+
+Mixed Selection
+
+```{r}
+model3 <- lm(MEDV ~ 1, data=train)
+full_model <- lm(MEDV ~ ., data=train)
+mixed <- step(model3, direction='both', scope=formula(full_model), trace=0)
+mixed$anova
+mixed$coefficients
+summary(mixed)
+```
+Observation:
+
+1. Mixed Selection Model is the combination of both forward selection and backward selection. 
+2. This is the preferable method as it tries to solve the problem in forward selection that is, predictors become insignificant after adding other predictors to the model. 
+3. Mixed selection allows insignificant predictors to be removed. 
+4. Mixed model also is similar to Forward selection, but it is better than Forward Selection and also has a low AIC. The model with lowest AIC is chosen
+
+## *Step 8 - Principal Component Analysis*
+
+For further analysis of most useful predictor variables, let us use PCA
+Although PCA is used in dimensionality reduction, let us use the principal components to see which variables truly impacts the MEDV by comparing their R- squared and adjusted R-squared with the above mixed regression model.
+
+
+```{r PCA, echo=TRUE}
+
+pca <- prcomp(train,center=TRUE, scale. = TRUE)
+summary(pca)
+```
+
+
+***Testing for eigenvalues of the principal components***
+
+```{r Select PCA based on eigen values, echo=TRUE}
+pca$sdev ^ 2
+```
+
+
+```{r}
+pca$rotation <- -1*pca$rotation
+print(pca$rotation)
+```
+
+
+Let us visualize the principal components
+
+```{r plot the PCAs, echo=TRUE}
+biplot(pca, cex = 0.8)
+```
+Observation:
+
+1. The proportion of variance in each component goes on decreasing with each component. The maximum variance is in the first principal component
+2. The first principal component always tries to accommodate maximum variation that it can explain in the model
+3. The most significant principal components that we may see here are the PC1, PC2 and PC3 based on their variance ( standard deviation )
+4. Only the first three components have maximum variability to explain the predictor variables with eigenvalues greater than 1.
+5. As we can see, variables like CRIM, RAD, TAX, NOX, LSTAT are all grouped well together.
+
+## *Step 9 - Fit the Linear Regression Model*
+
+Comparing the principal components to original regression variables using Linear Regression
+
+
+```{r fit the regression model with significant predictor variables, echo=TRUE}
+fit_2 <- lm(MEDV ~ CRIM+ZN+CHAS+NOX+RM+DIS+PTRATIO+LSTAT+RAD+TAX+AGE+INDUS+B, data = train)
+summary(fit_2)
+```
+
+
+The main predictor variables (also with high significance) to look at that mostly impacts MEDV (median house price) are CRIM, RM, NOX, DIS, LSTAT
+
+1. With the decrease in per capita crime rate, the prices of houses increases. This is expected as the people prefer living in towns where there are less crime rate. They are inversely related.
+2. In case of the number of rooms increasing, the prices of the houses go up. The co-efficient of RM also is as expected to increase MEDV with increase in number of rooms.
+3. NOX represents the nitric oxide concentrations that have harmful effects when inhaled. The co-efficient shows that MEDV and NOX are inversely correlated as expected.
+4. Remove AGE and INDUS, since they have no significance.
+
+Based on the results from feature selection and PCA, let us remove insignificant variables INDUS, AGE, TAX and B and train the regression model.
+
+
+Running principal component analysis for regression with first three principal component 
+
+```{r}
+components <- data.frame(MEDV = train$MEDV, pca$x[,1:3])
+```
+
+Now, let us fit the components for MEDV target
+
+```{r}
+fit_3 <- lm(MEDV ~ ., data = components)
+```
+
+## *Step 10 - Goodness of Fit Test*
+
+```{r}
+print(paste("Adjusted R-Squared in a linear regression model is ",summary(fit_2)$adj.r.squared))
+print(paste("Adjusted R-Squared in a linear regression model with PCA Components is ",summary(fit_3)$adj.r.squared))
+
+```
+
+There is definitely a slight increase in the adjusted r-squared with the inclusion of three principal components
+
+
+## *Step 11 - Variance Inflation Factor for further Analysis*
+
+As we observed multicollinearity between the predictors, we can make use of Ridge Regression to see how they are enhanced and if small regression coefficients are significant. 
+
+```{r}
+
+
+vif(fit_2)
+
+```
+
+Observation:
+
+1. RAD and TAX have high variance inflation factors that have multicollinearity with other predictor variables
+2. However, the RAD and TAX variables do not have significance on target variable MEDV
+
+
+## *Step 12 - Ridge Regression*
+
+The estimates of the predictor variables that are affected by multicollinearity are subject to have their regression co-efficients suppressed using Ridge Regression process
+
+```{r }
+
+set.seed(100)
+
+x = model.matrix(MEDV~.,train)       
+y = train$MEDV
+
+ridge_model <- cv.glmnet(x, y, alpha=0) 
+summary(ridge_model)
+```
+
+```{r}
+model_ridge_lambda <- cv.glmnet(x, y, alpha = 0)
+
+
+best_lambda <- model_ridge_lambda$lambda.min
+best_lambda
+
+
+plot(model_ridge_lambda)
+title("Plot of MSE vs Lambda")
+```
+
+```{r}
+ridge_reg_model <- glmnet(x, y, alpha = 0, lambda = best_lambda)
+coef(ridge_reg_model)
+```
+
+Observation:
+
+1. The predictor variables RAD and TAX that have high multicollinearity as we saw from VIF function.
+2. After using the ridge regression, the values of their estimates are reduced when compared to regular linear regression
+
+
+## *Step 13 - Prediction*
+
+Let us predict the prices of houses for the test dataset
+
+```{r}
+test1 <- data.frame(CRIM=test$CRIM,ZN=test$ZN,CHAS=test$CHAS,NOX=test$NOX,RM=test$RM, DIS = test$DIS, PTRATIO = test$PTRATIO, LSTAT = test$LSTAT, RAD = test$RAD, TAX = test$TAX, AGE = test$AGE, INDUS = test$INDUS, B = test$B)
+predict(fit_2,test1)
+
+```
+
+## *Step 14 - Prediction Interval*
+
+
+```{r}
+predict(fit_2, newdata = test1, interval = "prediction")
+```
+
+Plot of Prediction Interval:
+
+For MEDV going by the correlation matrix and plot, it is highly influenced by RM predictor variable
+
+```{r}
+model <- lm(MEDV ~ RM, data = train)
+# 1. Add predictions 
+pred.int <- predict(model, interval = "prediction")
+mydata <- cbind(train, pred.int)
+# 2. Regression line + confidence intervals
+library("ggplot2")
+p <- ggplot(mydata, aes(RM, MEDV)) +
+  geom_point() +
+  stat_smooth(method = lm)
+# 3. Add prediction intervals
+p + geom_line(aes(y = lwr), color = "red", linetype = "dashed")+
+    geom_line(aes(y = upr), color = "red", linetype = "dashed") +
+  labs(y = "Median House Price - MEDV", x = "No. of Rooms") +
+  ggtitle("Prediction Interval for MEDV when predictor is RM")
+```
+
+
+## *Step 15 - Residuals vs Target*
+
+Homoskedasticity or Heteroskedasticity ?
+
+```{r}
+plot(lm(MEDV ~ CRIM+ZN+CHAS+NOX+RM+DIS+RAD+TAX+PTRATIO+LSTAT, data = train))
+```
+Observation:
+
+1. The residuals are scattered around the residual = 0 line. This means that the assumption that the relationship is linear holds good.
+2. The residuals form a horizontal line around residual = 0 line. This suggests that variance of errors are equal. 
+This also means that the residuals are homoskedastic
+3. The plot also suggests that there are no outliers in the entire dataset
+
+**Conclusion : Out of all the models tested above, choose the fit_2 model that focuses on all the significant variables and the ridge regression model that is used for cases with small beta's **
