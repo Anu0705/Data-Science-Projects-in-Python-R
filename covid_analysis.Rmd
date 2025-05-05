@@ -1,0 +1,260 @@
+---
+title: "Covid Data Analysis"
+output: pdf_document
+---
+
+# **Covid 19 Data Analysis**
+
+### Let us consider the dataset from GitHub that consists of Global covid dataset giving deep insights on number of cases, number of deaths and number of cases recovered etc.
+
+
+```{r Importing packages,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+
+
+```
+
+## *Step 1  : Reading from the Source and importing dataset*
+
+```{r reading the files, echo=TRUE}
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_"
+file_names <- c("confirmed_global.csv",
+                "deaths_global.csv",
+                "recovered_global.csv")
+urls <- str_c(url_in,file_names)
+
+global_cases <- read_csv(urls[1], show_col_types = FALSE)
+global_deaths <- read_csv(urls[2], show_col_types = FALSE)
+recovered_cases <- read_csv(urls[3], show_col_types = FALSE)
+
+
+```
+### Combining the number of cases and number of deaths to the 'global' dataset
+
+```{r reading the data and combining the Global dataset, echo=TRUE}
+global_cases <- global_cases %>%
+  pivot_longer(cols = -c(`Province/State`, 
+                         `Country/Region`, Lat, Long), 
+               names_to = "date", 
+               values_to = "cases") %>%
+  select(-c(Lat,Long))
+
+# unpivoting dates and values of deaths
+
+global_deaths <- global_deaths %>%
+  pivot_longer(cols = -c(`Province/State`,
+                         `Country/Region`, Lat, Long), 
+               names_to = "date", 
+               values_to = "deaths") %>%
+  select(-c(Lat, Long))
+
+#full  joining global cases and global deaths based on the key Joining, by = c("Province/State", "Country/Region", "date")
+
+global <- global_cases %>% 
+  full_join(global_deaths) %>%
+  rename(Country_Region = `Country/Region`, 
+         Province_State = `Province/State`) %>%
+  mutate(date = mdy(date))
+
+## Joining, by = c("Province/State", "Country/Region", "date")
+
+summary(global)
+
+# filtering global dataset which have cases
+
+global <- global %>% filter(cases > 0)
+
+global <- global %>% 
+  unite("Combined_Key", 
+        c(Province_State, Country_Region), 
+        sep = ", ", 
+        na.rm = TRUE, 
+        remove = FALSE)
+
+```
+
+### Adding recoveries dataset to the global dataset
+
+```{r Adding recoveries dataset to the model, echo=TRUE}
+
+recovered_cases <- recovered_cases %>%
+  pivot_longer(cols = -c(`Province/State`, 
+                         `Country/Region`, Lat, Long), 
+               names_to = "date", 
+               values_to = "recoveries") %>%
+  select(-c(Lat,Long))
+
+summary(recovered_cases)
+str(recovered_cases)
+
+recovered_cases <- recovered_cases %>% 
+    rename(Country_Region = `Country/Region`, 
+         Province_State = `Province/State`) %>%
+    filter(recoveries > 0) %>%
+  mutate(date = mdy(date))
+
+# Let us add recoveries data to the global dataset for further analysis
+
+global <- global %>% 
+  full_join(recovered_cases, by = c("Province_State", "Country_Region", "date")) %>%
+    select(Province_State, Country_Region, date,
+         cases, deaths, recoveries,
+         Combined_Key)
+global
+```
+
+## *Step 2: Exploratory analysis involving the average and median calculations of recovery rate, death rate and on the same scale, the average of the cases*
+
+```{r Summarizing the Average number of cases, deaths and recoverie previous year and this year, echo=TRUE}
+global["yr"] <- substr(global$date, 1,4)
+
+global %>% 
+  group_by(Country_Region,yr) %>%
+  summarize(mean_cases = mean(cases, na.rm=TRUE), 
+            mean_deaths = mean(deaths, na.rm=TRUE),
+            mean_recoveries = mean(recoveries, na.rm=TRUE))
+
+global %>% 
+  group_by(Country_Region,yr) %>%
+  summarize(med_cases = median(cases, na.rm=TRUE), 
+            med_deaths = median(deaths, na.rm=TRUE),
+            med_recoveries = median(recoveries, na.rm=TRUE))
+
+
+```
+
+### Observations :
+
+1. The number of cases and deaths have relatively come down in the year 2021 compared to 2020 correspondingly the number of recoveries have gone up
+2. As the recoveries have increased, the number of deaths have reduced
+3.  The maximum number of states in the Australia has more than average number of recoveries compared to it's number of deaths
+
+
+
+## *Step 3: Question of Interest: Was Australia's Covid Zero Strategy a way of setting an example to manage a global pandemic a reality?*
+## We can test it with the data that we have
+## Let us consider Australia dataset for further analysis of covid numbers
+
+
+```{r Filtering the Australia dataset, echo=TRUE}
+Australia <- global %>% filter(Country_Region == "Australia")
+
+Aus_cases_rec <- ggplot(Australia)+
+  geom_point(aes(x=cases, y = recoveries)
+,color="green",
+size = 3,
+alpha = 0.8) +
+  labs(title = str_c("COVID19 in AUS "))
+Aus_cases_rec
+```
+
+### Observations:
+1.There has been a significant increase in the recovery rate as compared to the deaths
+
+2.Even though there are deaths in hundreds, there has been recoveries in ten thousands which itself is an observation to see that the recovery rate has gone up as the cases have increased
+
+# *Step 4: Visualization*
+## As the cases have gone up, there has also been a significant rise in the recovery rate in Australia
+## Let us visualize the data from Australia to understand the better performing states that contributed less or more number of cases to the totals
+
+```{r Year wise trend vs the provinces in Australia, echo=TRUE}
+aus_plot <- ggplot(data=Australia, aes(x=Province_State, fill = yr))
+aus_plot + geom_bar(position="dodge") +
+  scale_fill_grey() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  labs(title = str_c("Year wise trend across the Provinces in Australia "))
+
+aus_plot
+```
+
+### Some Observations from above plot:
+
+1.There has not been any increase in 2021 number of cases across the states and a varying trend can be seen in the last year
+
+2. Northern Territory and Australia Capital Territory have had the least contribution to the number of cases
+
+
+## Let us look at the Victoria state totals and trends
+```{r Comparison of Victoria cases and recoveries, echo=TRUE}
+
+Aus_totals_by_state <- Australia %>%
+  group_by(Province_State, date) %>%
+  summarize(cases = sum(cases), deaths = sum(deaths), 
+             recoveries = sum(recoveries, na.rm = TRUE)) %>%
+  select(Province_State,date,
+         cases, deaths, recoveries) %>%
+  ungroup()
+
+state <- "Victoria"
+Aus_totals_by_state %>% 
+  filter(Province_State == state) %>%
+  filter(cases > 0) %>%
+  ggplot(aes(x = date, y = cases)) +
+    geom_line(aes(color = "cases")) +
+  geom_point(aes(color = "cases")) +
+  geom_line(aes(y = deaths, color = "deaths")) +
+  geom_point(aes(y = deaths, color = "deaths")) +
+    geom_line(aes(y = recoveries, color = "recoveries")) +
+  geom_point(aes(y = recoveries, color = "recoveries")) +
+  scale_x_date(limits = as.Date(c('2020-01-26','2021-07-31'))) +
+  scale_y_log10() +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 Trends in ", state), y= NULL)
+```
+
+# *Step 5: Analysis of the Data*
+
+## Cumulative sum over the time shows that the number of recoveries  have increased with decrease in number of deaths over the time
+##  This measure is also called running total that sums up the day wise totals going forward with each day
+
+```{r Cumulative totals to find out the overall totals over the time, echo=TRUE}
+Aus_totals_by_state <- Aus_totals_by_state %>%
+  mutate(cases_cum = cumsum(cases), 
+         deaths_cum = cumsum(deaths),
+         rec_cum = cumsum(recoveries))
+Aus_totals_by_state
+```
+
+### Inference from above analysis:
+1. This clearly shows that the number of deaths have gone down gradually as the number of recovered cases have risen
+2. All the data points show that the number of deaths are significantly lesser than the number of recoveries
+3. As the cases have gone up, number of deaths has lowered with increase in number of recoveries
+
+# *Step 6: Model the Data*
+## This model is to predict the deaths corresponding to each Province/State to verify if the number of deaths have reduced with increase in number of recovered cases 
+
+```{r Linear Model to predict deaths vs recoveries, echo=TRUE}
+mod <- lm(deaths ~ recoveries, data = Aus_totals_by_state)
+summary(mod)
+
+Aus_totals_by_state %>% slice_min(deaths)
+Aus_totals_by_state %>% slice_max(deaths)
+
+x_grid <- seq(1, 200)
+new_df <- tibble(recoveries = x_grid)
+Aus_totals_by_state %>% mutate(pred = predict(mod))
+
+Aus_tot_w_pred <- Aus_totals_by_state %>% mutate(pred = predict(mod))
+Aus_tot_w_pred %>% ggplot() +
+  scale_y_log10() +
+  scale_x_log10() +
+  geom_point(aes(x = recoveries, y = deaths), color = "blue") +
+  geom_point(aes(x = recoveries, y = pred), color = "red")
+```
+
+# *Step 7: Conclusion*
+1. For a 10,000 cases of number of recoveries, there are under 1000 cases of deaths reported
+2. The predicted linear line shows that the number of deaths are directly related to the number of recovered cases 
+3. Though all the points are not exactly in accordance with the predicted outcome, most points fall under the same range
+4. The number of deaths have come down as the number of recoveries has increased
+
+# *Step 8: Bias*
+This shows that Australia's Zero Covid Strategy was true upto this year 2021.
+This was in accordance with the problem statement we started with.
+With the latest development, we are seeing that Australia's Delta Variant Covid surge has been forcing the country to end it's Zero Covid Strategy
+ 
